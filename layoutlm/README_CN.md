@@ -1,7 +1,9 @@
 # LayoutLM (Document Foundation Model)
 源代码复制:https://github.com/microsoft/unilm
 ## 基础知识
-- IIT-CDIP 数据集是一个大规模的扫描图像公开数据集，经过处理后文档数量达到约11,000,000。https://ir.nist.gov/cdip/
+- IIT-CDIP 数据集是一个大规模的扫描图像公开数据集，经过处理后文档数量达到约11,000,000。
+  - https://ir.nist.gov/cdip/ 
+  - https://paperswithcode.com/dataset/rvl-cdip
 
 ## 运行环境准备
 
@@ -14,6 +16,7 @@ pip install seqeval
 ~~~
 ## 代码更新
 - `layoutlm/deprecated/layoutlm/modeling/layoutlm.py` 使用troch自带的LayerNorm
+- `layoutlm/deprecated/examples/classification/run_classification.py` 使用pytroch的tensorboard
 ## 和论文不一致的地方
 
 ### 输入编码
