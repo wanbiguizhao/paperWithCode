@@ -5,6 +5,8 @@
   - https://ir.nist.gov/cdip/ 
   - https://paperswithcode.com/dataset/rvl-cdip
 - Robert 比原有的bert数据量更大，参数调优更精细化
+- 数据预处理部分：对原来的页面进行了缩放，调整为1000x1000的页面
+- 
 
 ## 运行环境准备
 

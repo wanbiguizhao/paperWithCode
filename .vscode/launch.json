@@ -21,14 +21,20 @@
             "justMyCode": true,
             "cwd": "${workspaceFolder}/layoutlm/deprecated",
             "args":[
-                "--experiment_dir=tmp",
-                "--batch_size=32",
-                "--input_nc=1",
-                "--image_size=256",
-                "--epoch=100",
-                "--sample_steps=200",
-                "--checkpoint_steps=500",
-                "--num_downs=8",
+                "--data_dir","examples/seq_labeling/data",
+                "--model_type","layoutlm",
+                "--config_name","tmp/layoutlm-base-uncased/config.json",
+                "--model_name_or_path","tmp/layoutlm-base-uncased/",
+                "--do_lower_case",
+                "--max_seq_length","512",
+                "--do_train",
+                "--num_train_epochs","100.0",
+                "--logging_steps","10",
+                "--save_steps","-1",
+                "--output_dir","tmp/models",
+                "--labels","examples/seq_labeling/data/labels.txt",
+                "--overwrite_output_dir"
+
             ],
             "env": {
                 "PYTHONPATH": "${workspaceFolder}/layoutlm/deprecated"
