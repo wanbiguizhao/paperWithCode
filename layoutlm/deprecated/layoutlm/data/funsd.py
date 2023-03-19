@@ -307,7 +307,7 @@ def convert_examples_to_features(
             label_ids = [pad_token_label_id] + label_ids
             segment_ids = [cls_token_segment_id] + segment_ids
 
-        input_ids = tokenizer.convert_tokens_to_ids(tokens)
+        input_ids = tokenizer.convert_tokens_to_ids(tokens)# 实现把token转换成bert可以处理input_ids就是数字化，方便以后做向量化处理。
 
         # The mask has 1 for real tokens and 0 for padding tokens. Only real
         # tokens are attended to.
@@ -360,3 +360,8 @@ def convert_examples_to_features(
             )
         )
     return features
+
+
+
+if __name__=="__main__":
+    examples=read_examples_from_file("examples/seq_labeling/data","train")

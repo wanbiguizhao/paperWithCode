@@ -97,6 +97,11 @@ def collate_fn(data):
 
 
 def get_labels(path):
+    """
+    VQA使用的标签：
+    E-HEADER
+    E-QUESTION
+    """
     with open(path, "r") as f:
         labels = f.read().splitlines()
     if "O" not in labels:
@@ -109,14 +114,14 @@ def train(  # noqa C901
 ):
     """ Train the model """
     if args.local_rank in [-1, 0]:
-        tb_writer = SummaryWriter(logdir="runs/" + os.path.basename(args.output_dir))
+        tb_writer = SummaryWriter(log_dir="runs/" + os.path.basename(args.output_dir))
 
     args.train_batch_size = args.per_gpu_train_batch_size * max(1, args.n_gpu)
     train_sampler = (
         RandomSampler(train_dataset)
         if args.local_rank == -1
         else DistributedSampler(train_dataset)
-    )
+    )# 对train_dataset的采样策略。
     train_dataloader = DataLoader(
         train_dataset,
         sampler=train_sampler,
@@ -166,6 +171,7 @@ def train(  # noqa C901
     )
     if args.fp16:
         try:
+            # 这个是NVIDIA提供的混合精度训练模型。
             from apex import amp
         except ImportError:
             raise ImportError(
@@ -648,7 +654,7 @@ def main():  # noqa C901
         torch.cuda.set_device(args.local_rank)
         device = torch.device("cuda", args.local_rank)
         torch.distributed.init_process_group(backend="nccl")
-        args.n_gpu = 1
+        args.n_gpu = 1 # 这个应该是分布式训练的代码，约定分布式的通信方式
     args.device = device
 
     # Setup logging
