@@ -32,7 +32,8 @@ from seqeval.metrics import (
     precision_score,
     recall_score,
 )
-from tensorboardX import SummaryWriter
+#from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 from torch.utils.data.distributed import DistributedSampler
@@ -40,6 +41,8 @@ from tqdm import tqdm, trange
 from transformers import (
     WEIGHTS_NAME,
     AdamW,
+    BERT_PRETRAINED_CONFIG_ARCHIVE_MAP,
+    ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP,
     BertConfig,
     BertForTokenClassification,
     BertTokenizer,
@@ -48,16 +51,25 @@ from transformers import (
     RobertaTokenizer,
     get_linear_schedule_with_warmup,
 )
-
+import os,sys
+# sys.path.append("~/ms/paperWithCode/layoutlm/deprecated/")
+#可以在vscode中设置PYTHONPATH加入layoutlm所在的路径
 from layoutlm import FunsdDataset, LayoutlmConfig, LayoutlmForTokenClassification
 
 logger = logging.getLogger(__name__)
 
 ALL_MODELS = sum(
+    # (
+    #     tuple(conf.pretrained_config_archive_map.keys())
+    #     for conf in (BertConfig, RobertaConfig, LayoutlmConfig)
+    # ),
     (
-        tuple(conf.pretrained_config_archive_map.keys())
-        for conf in (BertConfig, RobertaConfig, LayoutlmConfig)
+        tuple(BERT_PRETRAINED_CONFIG_ARCHIVE_MAP.keys()),tuple(ROBERTA_PRETRAINED_CONFIG_ARCHIVE_MAP.keys() )
     ),
+    #(
+        #LayoutlmConfig.pretrained_config_archive_map.keys()
+    #)
+
     (),
 )
 

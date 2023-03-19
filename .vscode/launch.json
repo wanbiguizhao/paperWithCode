@@ -1,0 +1,40 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "Python: LayoutLM-v1",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}/layoutlm/deprecated",
+            "args":[
+                "--experiment_dir=tmp",
+                "--batch_size=32",
+                "--input_nc=1",
+                "--image_size=256",
+                "--epoch=100",
+                "--sample_steps=200",
+                "--checkpoint_steps=500",
+                "--num_downs=8",
+            ],
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/layoutlm/deprecated"
+            }
+            
+        }
+
+    ]
+}
