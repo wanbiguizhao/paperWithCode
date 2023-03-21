@@ -26,5 +26,5 @@ pip install seqeval
 
 - 增加的text区域对应的宽度和高度 `h_position_embeddings w_position_embeddings`
 
-- [ ] position_ids  对应的数据格式不清楚
-- [ ] token_type_ids 对应的数据格式不清楚,似乎是用来区分填充的数据还是非填充的数据。
+- [ ] position_ids  对应的数据格式不清楚,应该是为了保留bert的position信息，实际情况使用的是bbox的坐标信息
+- [ ] token_type_ids 对应的数据格式不清楚,似乎是用来区分填充的数据还是非填充的数据。对应的segment——id，用来做NSP？存疑
