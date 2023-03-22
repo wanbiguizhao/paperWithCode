@@ -18,7 +18,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "justMyCode": true,
+            "justMyCode": false,
             "cwd": "${workspaceFolder}/layoutlm/deprecated",
             "args":[
                 "--data_dir","examples/seq_labeling/data",
