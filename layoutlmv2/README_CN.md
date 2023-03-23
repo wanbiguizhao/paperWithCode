@@ -18,3 +18,8 @@
 - 不能的文本块[SEG]对应的编码
 segment embedding is used to distinguish different text segments。 text segments 应该是和OCR做文字切割时相关。
 ### 图像嵌入
+1. resize 224x224
+2. 放入到backbone中，输出WH的feature map
+3. 展平后，通过一次线性映射，映射后的维度和文字的token的维度一样
+4. 位置编码：1D编码是类似于1，2，3，4的编码,值域[0,WH]
+5. segment编码固定的值[C]用来编辑这部分是文字编码。
