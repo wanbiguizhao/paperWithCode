@@ -23,3 +23,7 @@ segment embedding is used to distinguish different text segments。 text segment
 3. 展平后，通过一次线性映射，映射后的维度和文字的token的维度一样
 4. 位置编码：1D编码是类似于1，2，3，4的编码,值域[0,WH]
 5. segment编码固定的值[C]用来编辑这部分是文字编码。
+### 布局编码
+对于boxPAD的bbox为=(0,0,0,0,0,0)
+i-th (0 ≤ i < W H + L) 的i表示文本和图像token之后的下标记，
+在注意力中，原来只是关注i作为token的输入，现在还引入了j-i以及j和i的bbox,x,y坐标的相对距离。
