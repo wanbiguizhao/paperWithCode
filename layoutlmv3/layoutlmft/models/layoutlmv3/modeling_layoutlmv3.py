@@ -62,6 +62,7 @@ class PatchEmbed(nn.Module):
         self.num_patches_h = self.patch_shape[1]
 
     def forward(self, x, position_embedding=None):
+        # 一个疑问，x是图片吗？[b,c,h,w]
         x = self.proj(x)#[b,c,h/patch_size,w/patch_size ]
 
         if position_embedding is not None:
@@ -69,7 +70,7 @@ class PatchEmbed(nn.Module):
             position_embedding = position_embedding.view(1, self.patch_shape[0], self.patch_shape[1], -1).permute(0, 3, 1, 2)
             Hp, Wp = x.shape[2], x.shape[3]
             position_embedding = F.interpolate(position_embedding, size=(Hp, Wp), mode='bicubic')# 采样函数
-            x = x + position_embedding
+            x = x + position_embedding #加上了某种位置信息
 
         x = x.flatten(2).transpose(1, 2)# 从第2维度开始flatten，也就是Hp, Wp开始，把图片压平了，transpose（1，2），表示把所有的通道都放在一起处理
         return x
@@ -83,19 +84,19 @@ class LayoutLMv3Embeddings(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.word_embeddings = nn.Embedding(config.vocab_size, config.hidden_size, padding_idx=config.pad_token_id)
-        self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)
+        self.token_type_embeddings = nn.Embedding(config.type_vocab_size, config.hidden_size)# token 的类别
 
-        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)# 防止标准差为零的情况
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
         # position_ids (1, len position emb) is contiguous in memory and exported when serialized
-        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))
+        self.register_buffer("position_ids", torch.arange(config.max_position_embeddings).expand((1, -1)))# 目前看来像是给数据升级维度了
 
         # End copy
         self.padding_idx = config.pad_token_id
         self.position_embeddings = nn.Embedding(
             config.max_position_embeddings, config.hidden_size, padding_idx=self.padding_idx
-        )
+        )# padding_idx 不会更新梯度
 
         self.x_position_embeddings = nn.Embedding(config.max_2d_position_embeddings, config.coordinate_size)
         self.y_position_embeddings = nn.Embedding(config.max_2d_position_embeddings, config.coordinate_size)
@@ -104,7 +105,7 @@ class LayoutLMv3Embeddings(nn.Module):
 
     def _calc_spatial_position_embeddings(self, bbox):
         try:
-            assert torch.all(0 <= bbox) and torch.all(bbox <= 1023)
+            assert torch.all(0 <= bbox) and torch.all(bbox <= 1023)# bbox坐标[0,1023]
             left_position_embeddings = self.x_position_embeddings(bbox[:, :, 0])
             upper_position_embeddings = self.y_position_embeddings(bbox[:, :, 1])
             right_position_embeddings = self.x_position_embeddings(bbox[:, :, 2])
@@ -112,7 +113,7 @@ class LayoutLMv3Embeddings(nn.Module):
         except IndexError as e:
             raise IndexError("The :obj:`bbox` coordinate values should be within 0-1000 range.") from e
 
-        h_position_embeddings = self.h_position_embeddings(torch.clip(bbox[:, :, 3] - bbox[:, :, 1], 0, 1023))
+        h_position_embeddings = self.h_position_embeddings(torch.clip(bbox[:, :, 3] - bbox[:, :, 1], 0, 1023))# clip 夹子，确保数值在0，1023 之间
         w_position_embeddings = self.w_position_embeddings(torch.clip(bbox[:, :, 2] - bbox[:, :, 0], 0, 1023))
 
         # below is the difference between LayoutLMEmbeddingsV2 (torch.cat) and LayoutLMEmbeddingsV1 (add)
@@ -126,7 +127,7 @@ class LayoutLMv3Embeddings(nn.Module):
                 w_position_embeddings,
             ],
             dim=-1,
-        )
+        )# 把坐标和相对的长度和宽度，都记录了下来。
         return spatial_position_embeddings
 
     def create_position_ids_from_input_ids(self, input_ids, padding_idx, past_key_values_length=0):
@@ -139,10 +140,14 @@ class LayoutLMv3Embeddings(nn.Module):
 
         Returns: torch.Tensor
         """
+        # 论文中1D position refers to the index of tokens within the text sequence 并没有提到这里的特殊处理。
         # The series of casts and type-conversions here are carefully balanced to both work with ONNX export and XLA.
-        mask = input_ids.ne(padding_idx).int()
-        incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask
-        return incremental_indices.long() + padding_idx
+        mask = input_ids.ne(padding_idx).int()# ne not equal padding_idx 都会是1
+        # input_ids=torch.randint(1,10,(5,))  tensor([9, 5, 7, 5, 9])
+        # mask=input_ids.ne(5).int() tensor([1, 0, 1, 0, 1], dtype=torch.int32)
+        # torch.cumsum 前n个元素累加，当前的意思是，都变成了 1 2 3 3 4 4 变成了位置信息
+        incremental_indices = (torch.cumsum(mask, dim=1).type_as(mask) + past_key_values_length) * mask # 此后，padding_idx位置的元素数值会变成0
+        return incremental_indices.long() + padding_idx # 然后再加上padding_idx,padding_idx位置的部分是padding_idx，不是padding_idx部分变换成了位置
 
     def forward(
         self,
@@ -171,13 +176,14 @@ class LayoutLMv3Embeddings(nn.Module):
 
         if inputs_embeds is None:
             inputs_embeds = self.word_embeddings(input_ids)
-        token_type_embeddings = self.token_type_embeddings(token_type_ids)
+        # inputs_embeds 就是汉字的嵌入信息。
+        token_type_embeddings = self.token_type_embeddings(token_type_ids) # 论文的模型架构图在2D Position Embedding 间接展示了这部分。
 
         embeddings = inputs_embeds + token_type_embeddings
-        position_embeddings = self.position_embeddings(position_ids)
+        position_embeddings = self.position_embeddings(position_ids) # 这个位置信息是1d的，padding的信息基本上不计入
         embeddings += position_embeddings
 
-        spatial_position_embeddings = self._calc_spatial_position_embeddings(bbox)
+        spatial_position_embeddings = self._calc_spatial_position_embeddings(bbox)# 左上右下高宽
 
         embeddings = embeddings + spatial_position_embeddings
 
@@ -188,13 +194,13 @@ class LayoutLMv3Embeddings(nn.Module):
     def create_position_ids_from_inputs_embeds(self, inputs_embeds):
         """
         We are provided embeddings directly. We cannot infer which are padded so just generate sequential position ids.
-
+        create_position_ids_from_input_ids ，这两个函数的输出结构可能不一样，看起来似乎create_position_ids_from_input_ids排除了padding_idx的干扰
         Args:
             inputs_embeds: torch.Tensor≈
 
         Returns: torch.Tensor
         """
-        input_shape = inputs_embeds.size()[:-1]
+        input_shape = inputs_embeds.size()[:-1]# [b,sentence_length,hidden_size] Qsentence是否已经被填充了
         sequence_length = input_shape[1]
 
         position_ids = torch.arange(
