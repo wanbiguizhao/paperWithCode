@@ -259,27 +259,29 @@ class LayoutLMv3SelfAttention(nn.Module):
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (self.num_attention_heads, self.attention_head_size)
-        x = x.view(*new_x_shape)
-        return x.permute(0, 2, 1, 3)
+        x = x.view(*new_x_shape)# 对x的嵌入层做了分解，原来 [num_attention_heads*attention_head_size] 变成和num_attention_heads个维度为attention_head_size的矩阵[ num_attention_heads,attention_head_size]
+        return x.permute(0, 2, 1, 3) # x shape [b,sentence_len,num_attention_heads, attention_head_size]->[b,num_attention_heads,sentence_len, attention_head_size]# 应该是为了矩阵运算
 
     def cogview_attn(self, attention_scores, alpha=32):
         '''
+
         https://arxiv.org/pdf/2105.13290.pdf
         Section 2.4 Stabilization of training: Precision Bottleneck Relaxation (PB-Relax).
         A replacement of the original nn.Softmax(dim=-1)(attention_scores)
         Seems the new attention_probs will result in a slower speed and a little bias
         Can use torch.allclose(standard_attention_probs, cogview_attention_probs, atol=1e-08) for comparison
         The smaller atol (e.g., 1e-08), the better.
+        看论文了，主要是为了解决上溢出的问题。
         '''
         scaled_attention_scores = attention_scores / alpha
-        max_value = scaled_attention_scores.amax(dim=(-1)).unsqueeze(-1)
+        max_value = scaled_attention_scores.amax(dim=(-1)).unsqueeze(-1)# 某个维度上的amax的最大值。 https://pytorch.org/docs/stable/generated/torch.amax.html
         # max_value = scaled_attention_scores.amax(dim=(-2, -1)).unsqueeze(-1).unsqueeze(-1)
         new_attention_scores = (scaled_attention_scores - max_value) * alpha
         return nn.Softmax(dim=-1)(new_attention_scores)
 
     def forward(
         self,
-        hidden_states,
+        hidden_states,#[b,sentencelen,hidden_size]
         attention_mask=None,
         head_mask=None,
         encoder_hidden_states=None,
@@ -297,7 +299,8 @@ class LayoutLMv3SelfAttention(nn.Module):
         is_cross_attention = encoder_hidden_states is not None
 
         if is_cross_attention and past_key_value is not None:
-            # reuse k,v, cross_attentions
+            # reuse k,v, cross_attentions 不同于self-attention 概念 cross_attentions 的query来自于 decoder key来自于encode
+
             key_layer = past_key_value[0]
             value_layer = past_key_value[1]
             attention_mask = encoder_attention_mask
@@ -311,6 +314,7 @@ class LayoutLMv3SelfAttention(nn.Module):
             key_layer = torch.cat([past_key_value[0], key_layer], dim=2)
             value_layer = torch.cat([past_key_value[1], value_layer], dim=2)
         else:
+            # 这部分是最简单的selfattention
             key_layer = self.transpose_for_scores(self.key(hidden_states))
             value_layer = self.transpose_for_scores(self.value(hidden_states))
 
@@ -319,7 +323,7 @@ class LayoutLMv3SelfAttention(nn.Module):
         # Take the dot product between "query" and "key" to get the raw attention scores.
         # The attention scores QT K/√d could be significantly larger than input elements, and result in overflow.
         # Changing the computational order into QT(K/√d) alleviates the problem. (https://arxiv.org/pdf/2105.13290.pdf)
-        attention_scores = torch.matmul(query_layer / math.sqrt(self.attention_head_size), key_layer.transpose(-1, -2))
+        attention_scores = torch.matmul(query_layer / math.sqrt(self.attention_head_size), key_layer.transpose(-1, -2))# 避免overflow,？attention_scores的维度是多少
 
         if self.has_relative_attention_bias and self.has_spatial_attention_bias:
             attention_scores += (rel_pos + rel_2d_pos) / math.sqrt(self.attention_head_size)
@@ -360,14 +364,22 @@ class LayoutLMv3SelfAttention(nn.Module):
         return outputs
 
 
+# #%%
+# from configuration_layoutlmv3 import LayoutLMv3Config
+# test_config=LayoutLMv3Config()
+# print(test_config)
+
 class LayoutLMv3Attention(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.self = LayoutLMv3SelfAttention(config)
-        self.output = RobertaSelfOutput(config)
+        self.output = RobertaSelfOutput(config)# attention 结束之后的神经网络层
         self.pruned_heads = set()
 
     def prune_heads(self, heads):
+        """
+        可裁剪的头，猜测这个裁剪是最后才使用的。
+        """
         if len(heads) == 0:
             return
         heads, index = find_pruneable_heads_and_indices(
@@ -421,8 +433,8 @@ class LayoutLMv3Layer(nn.Module):
         self.attention = LayoutLMv3Attention(config)
         assert not config.is_decoder and not config.add_cross_attention, \
             "This version do not support decoder. Please refer to RoBERTa for implementation of is_decoder."
-        self.intermediate = RobertaIntermediate(config)
-        self.output = RobertaOutput(config)
+        self.intermediate = RobertaIntermediate(config)#一层神经网络一层激活函数
+        self.output = RobertaOutput(config)# 一层神经网络，LayerNorm,dropout # 一个猜测这个是robert的attention之后的结构。
 
     def forward(
         self,
@@ -447,14 +459,14 @@ class LayoutLMv3Layer(nn.Module):
             rel_pos=rel_pos,
             rel_2d_pos=rel_2d_pos,
         )
-        attention_output = self_attention_outputs[0]
+        attention_output = self_attention_outputs[0]# attention的输出结果。
 
         outputs = self_attention_outputs[1:]  # add self attentions if we output attention weights
 
         layer_output = apply_chunking_to_forward(
             self.feed_forward_chunk, self.chunk_size_feed_forward, self.seq_len_dim, attention_output
-        )
-        outputs = (layer_output,) + outputs
+        )# 是否是执行的截断操作。
+        outputs = (layer_output,) + outputs # 这块儿执行的shortcut
 
         return outputs
 
@@ -494,7 +506,7 @@ class LayoutLMv3Encoder(nn.Module):
             self.out_features = out_features
             self.out_indices = [int(name[5:]) for name in out_features]
             self.fpn1 = nn.Sequential(
-                nn.ConvTranspose2d(embed_dim, embed_dim, kernel_size=2, stride=2),
+                nn.ConvTranspose2d(embed_dim, embed_dim, kernel_size=2, stride=2),# 膨胀卷积？
                 # nn.SyncBatchNorm(embed_dim),
                 nn.BatchNorm2d(embed_dim),
                 nn.GELU(),
@@ -1286,3 +1298,5 @@ class LayoutLMv3ForSequenceClassification(LayoutLMv3PreTrainedModel):
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
+
+# %%
