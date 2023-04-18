@@ -501,15 +501,16 @@ class LayoutLMv3Encoder(nn.Module):
             self.rel_pos_y_bias = nn.Linear(self.rel_2d_pos_onehot_size, config.num_attention_heads, bias=False)
 
         if self.detection:
+            # 执行目标检测的任务
             self.gradient_checkpointing = True
             embed_dim = self.config.hidden_size
-            self.out_features = out_features
+            self.out_features = out_features# 猜测用于约定使用第基层特征。
             self.out_indices = [int(name[5:]) for name in out_features]
             self.fpn1 = nn.Sequential(
-                nn.ConvTranspose2d(embed_dim, embed_dim, kernel_size=2, stride=2),# 膨胀卷积？
+                nn.ConvTranspose2d(embed_dim, embed_dim, kernel_size=2, stride=2),# 转置卷积？
                 # nn.SyncBatchNorm(embed_dim),
                 nn.BatchNorm2d(embed_dim),
-                nn.GELU(),
+                nn.GELU(),# 一种激活函数
                 nn.ConvTranspose2d(embed_dim, embed_dim, kernel_size=2, stride=2),
             )
 
@@ -727,26 +728,26 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
         assert not config.is_decoder and not config.add_cross_attention, \
             "This version do not support decoder. Please refer to RoBERTa for implementation of is_decoder."
         self.detection = detection
-        if not self.detection:
+        if not self.detection: 
             self.image_only = False
-        else:
+        else:# 执行文档layout推测时，必须要有可视化嵌入
             assert config.visual_embed
             self.image_only = image_only
 
         if not self.image_only:
-            self.embeddings = LayoutLMv3Embeddings(config)
-        self.encoder = LayoutLMv3Encoder(config, detection=detection, out_features=out_features)
+            self.embeddings = LayoutLMv3Embeddings(config)# 嵌入部分有了
+        self.encoder = LayoutLMv3Encoder(config, detection=detection, out_features=out_features)# 编码器部分有了，就是attention加上神经网络的堆叠
 
         if config.visual_embed:
             embed_dim = self.config.hidden_size
             # use the default pre-training parameters for fine-tuning (e.g., input_size)
             # when the input_size is larger in fine-tuning, we will interpolate the position embedding in forward
-            self.patch_embed = PatchEmbed(embed_dim=embed_dim)
+            self.patch_embed = PatchEmbed(embed_dim=embed_dim)# 这部分应该是使用预训练模型的部分。
 
             patch_size = 16
-            size = int(self.config.input_size / patch_size)
-            self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-            self.pos_embed = nn.Parameter(torch.zeros(1, size * size + 1, embed_dim))
+            size = int(self.config.input_size / patch_size)# 这个size是默认每个patch的大小吗？
+            self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))# shape [1,1,embed_dim]
+            self.pos_embed = nn.Parameter(torch.zeros(1, size * size + 1, embed_dim))# 不是特别的懂
             self.pos_drop = nn.Dropout(p=0.)
 
             self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
@@ -756,7 +757,7 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
                 self._init_visual_bbox(img_size=(size, size))
 
             from functools import partial
-            norm_layer = partial(nn.LayerNorm, eps=1e-6)
+            norm_layer = partial(nn.LayerNorm, eps=1e-6)# 对函数进行了LayerNorm包装。
             self.norm = norm_layer(embed_dim)
 
         self.init_weights()
@@ -775,9 +776,10 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
         for layer, heads in heads_to_prune.items():
             self.encoder.layer[layer].attention.prune_heads(heads)
 
-    def _init_visual_bbox(self, img_size=(14, 14), max_len=1000):
+    def _init_visual_bbox(self, img_size=(14, 14), max_len=1000):#max_len是什么的最大长度，image的？
+        # 记住吧，image_size表示的是要把图片分成14x14大小的片段。
         visual_bbox_x = torch.div(torch.arange(0, max_len * (img_size[1] + 1), max_len),
-                                  img_size[1], rounding_mode='trunc')
+                                  img_size[1], rounding_mode='trunc')# 理解应该是一个按照比例所用的过程，14x14，patch，在原图上对应的位置
         visual_bbox_y = torch.div(torch.arange(0, max_len * (img_size[0] + 1), max_len),
                                   img_size[0], rounding_mode='trunc')
         visual_bbox = torch.stack(
@@ -788,10 +790,10 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
                 visual_bbox_y[1:].repeat(img_size[1], 1).transpose(0, 1),
             ],
             dim=-1,
-        ).view(-1, 4)
+        ).view(-1, 4)# visual_bbox shape 
 
         cls_token_box = torch.tensor([[0 + 1, 0 + 1, max_len - 1, max_len - 1]])
-        self.visual_bbox = torch.cat([cls_token_box, visual_bbox], dim=0)
+        self.visual_bbox = torch.cat([cls_token_box, visual_bbox], dim=0)# visual_bbox.shape 
 
     def _calc_visual_bbox(self, device, dtype, bsz):  # , img_size=(14, 14), max_len=1000):
         visual_bbox = self.visual_bbox.repeat(bsz, 1, 1)
@@ -800,6 +802,7 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
 
     def forward_image(self, x):
         if self.detection:
+            # 不仅仅是原始图片信息，还要加上位置图片信息位置信息，但是位置信息的pos_embed初始化的内容不清楚。
             x = self.patch_embed(x, self.pos_embed[:, 1:, :] if self.pos_embed is not None else None)
         else:
             x = self.patch_embed(x)
@@ -814,7 +817,7 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
             x = x + self.pos_embed
         x = self.pos_drop(x)
 
-        x = self.norm(x)
+        x = self.norm(x)# laynorm
         return x
 
     # Copied from transformers.models.bert.modeling_bert.BertModel.forward
@@ -901,11 +904,13 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
         # attention_probs has shape bsz x n_heads x N x N
         # input head_mask has shape [num_heads] or [num_hidden_layers x num_heads]
         # and head_mask is converted to shape [num_hidden_layers x batch x num_heads x seq_length x seq_length]
+        # 解码器才需要使用。
         head_mask = self.get_head_mask(head_mask, self.config.num_hidden_layers)
 
         if not self.image_only:
             if bbox is None:
                 bbox = torch.zeros(tuple(list(input_shape) + [4]), dtype=torch.long, device=device)
+                # 什么时候不会传bbox呢？
 
             embedding_output = self.embeddings(
                 input_ids=input_ids,
@@ -921,7 +926,7 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
         if images is not None:
             patch_size = 16
             Hp, Wp = int(images.shape[2] / patch_size), int(images.shape[3] / patch_size)
-            visual_emb = self.forward_image(images)
+            visual_emb = self.forward_image(images)# 把图片转换成了向量
             if self.detection:
                 visual_attention_mask = torch.ones((batch_size, visual_emb.shape[1]), dtype=torch.long, device=device)
                 if self.image_only:
@@ -951,7 +956,7 @@ class LayoutLMv3Model(LayoutLMv3PreTrainedModel):
             if self.image_only:
                 embedding_output = visual_emb
             else:
-                embedding_output = torch.cat([embedding_output, visual_emb], dim=1)
+                embedding_output = torch.cat([embedding_output, visual_emb], dim=1)# 这一步实现了多模态的工作。
             embedding_output = self.LayerNorm(embedding_output)
             embedding_output = self.dropout(embedding_output)
         elif self.config.has_relative_attention_bias or self.config.has_spatial_attention_bias:

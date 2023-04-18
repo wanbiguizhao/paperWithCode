@@ -38,7 +38,7 @@ class xfund_dataset(Dataset):
             if i == 0:
                 segment_ids.append(0)
             else:
-                if bboxs[i - 1] == bboxs[i]:
+                if bboxs[i - 1] == bboxs[i]:# 现在是一段文字共用的bbox的坐标，如果一样的化，可以认为在一个segment_ids中。
                     segment_ids.append(segment_ids[-1])
                 else:
                     segment_ids.append(segment_ids[-1] + 1)
