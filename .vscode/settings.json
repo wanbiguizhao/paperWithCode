@@ -1,5 +1,6 @@
 {
     "python.analysis.extraPaths": [
-        "./layoutlmft/layoutlmft/data"
+        "./layoutlmft/layoutlmft/data",
+        "./layoutlmft/data"
     ]
 }

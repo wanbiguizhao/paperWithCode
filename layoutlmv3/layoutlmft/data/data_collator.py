@@ -66,7 +66,7 @@ class DataCollatorForKeyValueExtraction(DataCollatorMixin):
             features,
             padding=self.padding,
             max_length=self.max_length,
-            pad_to_multiple_of=self.pad_to_multiple_of,
+            pad_to_multiple_of=self.pad_to_multiple_of,# If specified, the padding length should always snap to the next multiple of the given value. For example if we were going to pad witha length of 250 but pad_to_multiple_of=8 then we will pad to 256. 
             # Conversion to tensors will fail if we have labels as they are not of the same length yet.
             return_tensors="pt" if labels is None else None,
         )
@@ -87,10 +87,12 @@ class DataCollatorForKeyValueExtraction(DataCollatorMixin):
         sequence_length = torch.tensor(batch["input_ids"]).shape[1]
         padding_side = self.tokenizer.padding_side
         if padding_side == "right":
+            # 计算填充后的bbox，position_ids的
             batch["labels"] = [label + [self.label_pad_token_id] * (sequence_length - len(label)) for label in labels]
             if has_bbox_input:
                 batch["bbox"] = [bbox + [[0, 0, 0, 0]] * (sequence_length - len(bbox)) for bbox in batch["bbox"]]
             if has_position_input:
+                # 终于知道为什么position_id从2开始了，因为padding的是1
                 batch["position_ids"] = [position_id + [padding_idx] * (sequence_length - len(position_id))
                                           for position_id in batch["position_ids"]]
 
@@ -120,5 +122,5 @@ class DataCollatorForKeyValueExtraction(DataCollatorMixin):
         if images is not None:
             visual_labels = torch.ones((len(batch['input_ids']), IMAGE_LEN), dtype=torch.long) * -100
             batch["labels"] = torch.cat([batch['labels'], visual_labels], dim=1)
-
+        # 完成了数据的padding，都变成了tensor
         return batch
