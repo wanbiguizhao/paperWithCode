@@ -6,8 +6,8 @@ import numpy as np
 from PIL import Image
 import torch
 
-from detectron2.data.detection_utils import read_image
-from detectron2.data.transforms import ResizeTransform, TransformList
+# from detectron2.data.detection_utils import read_image
+# from detectron2.data.transforms import ResizeTransform, TransformList
 
 def normalize_bbox(bbox, size):
     return [

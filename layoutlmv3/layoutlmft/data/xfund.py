@@ -45,6 +45,7 @@ class xfund_dataset(Dataset):
         return segment_ids
 
     def get_position_ids(self, segment_ids):
+        # 用于计算每一个字符在segment中的相对位置
         position_ids = []
         for i in range(len(segment_ids)):
             if i == 0:
@@ -106,6 +107,7 @@ class xfund_dataset(Dataset):
             total_input_ids.append(cur_doc_input_ids)
             total_bboxs.append(cur_doc_bboxs)
             total_label_ids.append(cur_doc_labels)
+        # 把每一页面的汉字，坐标，类型都处理成为序列了
         assert len(total_input_ids) == len(total_bboxs) == len(total_label_ids)
 
         # split text to several slices because of over-length
@@ -116,14 +118,15 @@ class xfund_dataset(Dataset):
             start = 0
             cur_iter = 0
             while start < len(total_input_ids[i]):
+                # 一页包含的字符太长时，需要进行切割
                 end = min(start + 510, len(total_input_ids[i]))
 
                 input_ids.append([self.tokenizer.cls_token_id] + total_input_ids[i][start: end] + [self.tokenizer.sep_token_id])
                 bboxs.append([[0, 0, 0, 0]] + total_bboxs[i][start: end] + [[1000, 1000, 1000, 1000]])
                 labels.append([-100] + total_label_ids[i][start: end] + [-100])
 
-                cur_segment_ids = self.get_segment_ids(bboxs[-1])
-                cur_position_ids = self.get_position_ids(cur_segment_ids)
+                cur_segment_ids = self.get_segment_ids(bboxs[-1])# 最后的bbox
+                cur_position_ids = self.get_position_ids(cur_segment_ids)# cur_position_ids 表示的是，字符在同一个segment 中的相对位置
                 segment_ids.append(cur_segment_ids)
                 position_ids.append(cur_position_ids)
                 image_path.append(os.path.join(self.args.data_dir, "images", total_data['image_path'][i]))
@@ -133,7 +136,7 @@ class xfund_dataset(Dataset):
 
         assert len(input_ids) == len(bboxs) == len(labels) == len(segment_ids) == len(position_ids)
         assert len(segment_ids) == len(image_path)
-
+        #print([len(ids) for ids in input_ids])
         res = {
             'input_ids': input_ids,
             'bbox': bboxs,
@@ -190,7 +193,7 @@ class xfund_dataset(Dataset):
         position_ids = self.feature['position_ids'][index]
 
         img = pil_loader(self.feature['image_path'][index])
-        for_patches, _ = self.common_transform(img, augmentation=False)
+        for_patches, _ = self.common_transform(img, augmentation=False)# 这一步实现了图片的压缩，变成224之后基本上看不到文字的信息了。
         patch = self.patch_transform(for_patches)
 
         assert len(input_ids) == len(attention_mask) == len(labels) == len(bbox) == len(segment_ids)
@@ -204,6 +207,7 @@ class xfund_dataset(Dataset):
             "position_ids": position_ids,
             "images": patch,
         }
+        #print([len(ids) for ids in res["input_ids"]])
         return res
 
 def pil_loader(path: str) -> Image.Image:
