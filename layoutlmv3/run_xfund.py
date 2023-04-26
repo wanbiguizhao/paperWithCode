@@ -25,7 +25,7 @@ from transformers import (
 )
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
 from transformers.utils import check_min_version
-
+from layoutlmft.models.layoutlmv3.modeling_layoutlmv3 import LayoutLMv3Model
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.5.0")
 
@@ -222,8 +222,8 @@ def main():
     if training_args.do_eval:
         eval_dataset = xfund_dataset(data_args, tokenizer, 'eval')
 
-        #model = 
-        model = AutoModelForTokenClassification.from_pretrained(
+        model = LayoutLMv3Model.from_pretrained(
+        #model = AutoModelForTokenClassification.from_pretrained(
         model_args.model_name_or_path,
         from_tf=bool(".ckpt" in model_args.model_name_or_path),
         config=config,
